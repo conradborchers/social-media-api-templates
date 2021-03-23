@@ -10,8 +10,7 @@ library(tidyverse)
 ```
 
 ```{r}
-d <- readRDS("data-final-not-anonymized-2021-03-09.rds")
-
+d <- readRDS("data/data-final-not-anonymized-2021-03-09.rds")
 dat <- d$tweets %>% select(text, user_id, user_name)
 ```
 

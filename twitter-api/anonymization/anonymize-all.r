@@ -5,6 +5,8 @@ library(hash)
 # d <- readRDS("data-final-not-anonymized-2021-03-09.rds") # sample data
 
 
+
+
 ### Step two: Substitute @usernames with anonymous User IDs ----------------------------
 
 user_pairs_main <- d$tweets %>%
@@ -25,9 +27,9 @@ mentions <- d$tweets$text %>%
 # entries, to be discussed
 
 missing_entries <- mentions[has.key(mentions, h) %>%
-  as.logical() %>%
-  `!`() %>% # negate()
-  which()]
+                              as.logical() %>%
+                              `!`() %>% # negate()
+                              which()]
 
 missing_entries <- tibble(alias = missing_entries) %>%
   # added dash because its not allowed in Twitter's user namespace
