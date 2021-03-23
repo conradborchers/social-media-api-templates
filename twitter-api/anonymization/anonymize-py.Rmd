@@ -1,0 +1,75 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+library(tidyverse)
+```
+
+```{r}
+d <- readRDS("data-final-not-anonymized-2021-03-09.rds")
+
+dat <- d$tweets %>% select(text, user_id, user_name)
+```
+
+
+```{python}
+df = r.dat
+user_dict = {}
+```
+
+```{python}
+for uid, name in zip(df.user_id, df.user_name):
+  if name not in user_dict:
+    user_dict[name] = uid
+  else:
+    continue
+```
+
+
+```{python}
+import re
+import string
+
+not_allowed_punct = string.punctuation.replace("_","")
+
+###  TODO ADD USERNAMES THAT ARE NOT ORIGINAL POSTERS AND'
+#    CREATE NEW ANONYMOUS DICT ENTRIES FOR THEM e.g., "anon-123123"
+
+# TODO: MAKE ALL TEXT TO LOWER PRIOR TO EXECUTION
+
+# TODO: ONE TEXT WITH @user with original upper, lower, format
+# AND ONE WITH ANON @NUMBER/ANONUSERID
+
+
+#count=1
+all_texts=[]
+for text in df.text:
+  #count+=1
+  #if count>1000:
+  #  break
+  res = []
+  splitted = text.split(" ")
+  for word in splitted:
+    if len(word)==0:
+      continue
+    if not (word[0] == "@"):
+      res.append(word)
+      continue
+    else:
+      word_good = "".join(["@"]+[w for w in word[1:] if w not in not_allowed_punct])
+      if word_good[1:] in user_dict.keys():
+        word_good = "".join(["@",user_dict[word_good[1:]]])
+        res.append(word_good)
+      # if word is not a mention and user is no
+      else:
+        res.append(word)
+        
+        
+  all_texts.append(" ".join(res))
+  
+df["text_anon2"] = all_texts
+```

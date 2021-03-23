@@ -1,2 +1,9 @@
 token.txt
 *.json
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+*.rda
+*.rds
