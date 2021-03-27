@@ -128,6 +128,8 @@ prepare_join <- function(d) {
   # Add / Join Media so it can be removed afterwards
   # FIXME: Check for robustness
   d$main$referenced_media <- map(d$main$media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
+  # reduce payload by removing duplicated media references
+  # %>% distinct(media_id, .keep_all = TRUE)
   return(d)
 }
 

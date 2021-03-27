@@ -87,10 +87,12 @@ all <- map(
 ### Data Cleaning -------------------------------------------------------
 
 # Get Functions
-source(here::here("scripts", "download", "functions.R"))
+source(here::here("twitter-api", "conversations", "conversation-functions.R"))
 
 cat("Reading in parsed data...")
-all <- readRDS("all_conversations_parsed.rds")
+all <- readRDS(here::here("twitter-api","conversations","all_conversations_parsed.rds"))
+
+# all <- d[1:10]
 n <- length(all)
 
 # Iterate over all conversations in parsed data and clean + join + rbind
@@ -107,12 +109,12 @@ final <- imap_dfr(all, function(dat, index) {
 })
 
 cat("Finishing up...")
-final <- final %>%
+# final <- final %>%
   ### FIXME: THIS distinct() COULD BE PROBLEMATIC, NEED TO CHECK MORE
   distinct(status_id, .keep_all = TRUE) %>%
   arrange(created_at) # not formated yet
 
 cat("Saving Dataset...")
-saveRDS(final, "all_conversations_cleaned.rds")
+saveRDS(final, here::here("twitter-api","conversations","all_conversations_raw.rds"))
 
 # TODO: Paper Vars Selection here?
