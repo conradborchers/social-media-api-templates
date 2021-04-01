@@ -7,4 +7,5 @@ token.txt
 .DS_Store
 *.rda
 *.rds
-*._*
+._*
+*.log
