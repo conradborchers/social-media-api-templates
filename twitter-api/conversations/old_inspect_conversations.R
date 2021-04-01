@@ -61,25 +61,30 @@ library(tidyverse)
 conv <- readRDS(here::here("twitter-api" , "conversations", "all_conversations_cleaned.rds"))
 
 ## tibble of cleaned downloaded tweets with "status_id", "created_at" and "conversation_id"
+# with n>0 replies, can be replies themselves (not head)
 # see "extract-conversations.R" for generation
 original <- readRDS(here::here("twitter-api","conversations","reply-reference.rds"))
 
 # status_ids of all initially downloaded tweets (hashtag search) with n>0 replies
 greenlight <- original$status_id # selects the heads of conversations
+# TODO: is_head: conv filter(conversation_id == status_id of tweets with is_head)
+# greenligtht append status ids of replies to is_head afiliated with is_head tweets (lookup by conversation == status_id of head)
+
 # found <- c()
 
-# status_ids of all initially downloaded tweets (hashtag search) with n>0 replies
+# get replies for these tweets
 target <- original$status_id
-# get conversation tweet when it references a downloaded original tweet
-found <- conv$status_id[conv$ref_status_id %in% target] # initial search
+
+# get reply when it references a downloaded original tweet (either head or subthread)
+found <- conv$status_id[conv$ref_replied_to_status_id %in% target] # initial search
 i <- 1
 while (length(found) > 0) {
   cat("Found", length(found), "replies in layer", i, "\n")
-  # append found to greenlight
+  # append found replies to greenlight
   greenlight <- c(greenlight, found)
   # Search in next layer (replies to replies)
   target <- found
-  found <- conv$status_id[conv$ref_status_id %in% target]
+  found <- conv$status_id[conv$ref_replied_to_status_id %in% target]
   i <- i + 1 # next layer
 }
 
