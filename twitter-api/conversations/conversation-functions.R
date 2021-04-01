@@ -1,3 +1,18 @@
+merge_queries <- function(dat) {
+  # iterate over each API query response in input list and rbind the subtables together (not joining)
+  all <- list()
+  all$main <- map_dfr(dat, ~ .x$data)
+  all$users <- map_dfr(dat, ~ .x$includes$users)
+  all$tweets <- map_dfr(dat, ~ .x$includes$tweets)
+  all$media <- map_dfr(dat, ~ .x$includes$media)
+  all$places <- map_dfr(dat, ~ .x$includes$places)
+  # all$errors ?
+  # all$polls ?
+  # all$meta
+  return(all)
+}
+
+
 ## Rename dataset with predefined namekeys for each subdataset
 # set report_missing to TRUE to check for variables currently not in our preselection
 rename_vars <- function(d, report_missing = FALSE) {
@@ -37,7 +52,7 @@ rename_vars <- function(d, report_missing = FALSE) {
     created_at = "user_created_at",
     url = "user_url",
     location = "user_location",
-    name = "name",
+    name = "user_fullname",
     profile_image_url = "user_profile_image",
     entities.url.urls = "entities.url.urls",
     entities.description.mentions = "entities.description.mentions",
@@ -124,9 +139,10 @@ fill_missing_tibbles <- function(d) {
 
 ## Prepare Join
 prepare_join <- function(d) {
+  # FIXME: not sufficent, needs variable splitting (at least for replied_to)
   d$main$ref_status_id <- map_chr(d$main$referenced_tweets, ~ ifelse(is.null(.x), NA, head(.x$id, 1)))
   # Add / Join Media so it can be removed afterwards
-  # FIXME: Check for robustness
+
   d$main$referenced_media <- map(d$main$media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
   # reduce payload by removing duplicated media references
   # %>% distinct(media_id, .keep_all = TRUE)
@@ -150,11 +166,37 @@ join_tables <- function(d) {
 }
 
 # Reduce payload by removing obsolete variables
+# Always use contains here! (edge case handeling!)
 preselect_vars <- function(d) {
   d$main <- d$main %>% select(-contains("entities"))
-  d$users <- d$users %>% select(-contains("entities"), -name, -contains("user_url"), -contains("user_protected"), -contains("user_profile_image"), -contains("user_pinned_status_id"))
+  d$users <- d$users %>% select(-contains("entities"), -contains("user_fullname"), -contains("user_url"), -contains("user_protected"), -contains("user_profile_image"), -contains("user_pinned_status_id"))
   d$tweets <- d$tweets %>% select(-contains("entities"), -contains("ref_media_id"))
   d$media <- d$media %>% select(-contains("media_width"), -contains("media_height"))
   d$places <- d$places %>% select(-contains("place_country_full"))
   return(d)
 }
+
+unnest_referenced_tweets <- function(d) {
+  # information about private tweets gets lost when NULL is removed
+  d$ref_replied_to_status_id <- map_chr(d$referenced_tweets, ~ ifelse(is.null(.x), NA_character_, .x$id[.x$type == "replied_to"]))
+  d$ref_quoted_status_id <- map_chr(d$referenced_tweets, ~ ifelse(is.null(.x), NA_character_, .x$id[.x$type == "quoted"]))
+  d$ref_retweeted_status_id <- map_chr(d$referenced_tweets, ~ ifelse(is.null(.x), NA_character_, .x$id[.x$type == "retweeted"]))
+  # More?
+  # FIXME: could also just change all NULLs to NA globally...
+  return(d)
+}
+
+load_conversation <- function(raw_conversation_dat) {
+  raw_conversation_dat %>% # one list element per query call
+    # check_content() %>% # check if conversation is empty (meta$results_count == 0)
+    merge_queries() %>% # merge queries
+    rename_vars() %>%
+    preselect_vars() %>%
+    fill_missing_tibbles() %>%
+    prepare_join() %>%
+    drop_duplicates() %>%
+    join_tables() # join subtables to one tidy dataframe
+}
+
+
+# TODO: Variable order and attributes?
