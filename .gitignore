@@ -9,3 +9,5 @@ token.txt
 *.rds
 ._*
 *.log
+*.txt
+*.csv

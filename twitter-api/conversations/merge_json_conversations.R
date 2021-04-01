@@ -2,18 +2,6 @@
 
 library(tidyverse)
 
-## Biggest conversations for testing:
-# 1297132096448864258 1024134417856561152 1224052675660132354
-# 273                  71                  37
-# 1069933893917270016 1158357896935170048 1323683629084692481
-# 36                  14                  13
-# 1161396390511165441 1069622288360849408 1202184499553062912
-# 12                  11                  10
-# 1240739448079257601  664222420375506944 1252911812556681217
-# 10                  10                   9
-# 1334955545544060928 1337813721335263232  835197901244489729
-# 9                   9                   9
-
 # Manually Fixed: "1278675494813216768"
 
 # Get all unique conversations in folder
@@ -87,7 +75,7 @@ all <- map(
 ### Data Cleaning -------------------------------------------------------
 
 # Get Functions
-source(here::here("twitter-api", "conversations", "conversation-functions.R"))
+source(here::here("twitter-api", "conversations", "merger_functions.R"))
 
 cat("Reading in parsed data...")
 all <- readRDS(here::here("twitter-api","conversations","all_conversations_parsed.rds"))
