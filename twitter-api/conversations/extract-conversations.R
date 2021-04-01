@@ -160,11 +160,13 @@ conversations <- tibble(
 
 conversations <- conversations %>%
   filter(reply_count > 0)
-# select(-reply_count)
 
 # is_head indicates if status is a conversation starter
 conversations <- conversations %>% mutate(is_head = status_id == conversation_id)
 
 conversations %>% count(is_head)
+
+# small but important detail
+conversations <- conversations %>% distinct(conversation_id, .keep_all=TRUE)
 
 saveRDS(conversations, here::here("twitter-api", "conversations", "reply-reference.rds"))
