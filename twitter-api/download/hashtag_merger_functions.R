@@ -1,41 +1,42 @@
-get_files_by_hashtag <- function(hashtag) {
-  cat("\nGetting files...")
-  cat("\nGetting files...", file = "parsing.log", append = TRUE)
+### JSON Parsing ------------------------------------------------------------
+
+get_files_by_hashtag <- function(hashtag, json_path) {
+  cat(" | Getting files...")
+  write(" | Getting files...", file = log_file, append = TRUE)
+  # Get json files
   dir(
-    path = here::here("twitter-api", "download", "json"), full.names = TRUE,
+    path = json_path, full.names = TRUE,
     pattern = paste0(hashtag, "\\-")
   )
 }
 
-
-get_json <- function(file) {
+# take in json file and try parsing
+parse_json <- function(file) {
+  # FIXME: stops execution and does not print cond to log
   tryCatch(
-    expr = jsonlite::fromJSON(file, simplifyDataFrame = TRUE, flatten = TRUE),
+    jsonlite::fromJSON(file, simplifyDataFrame = TRUE, flatten = TRUE),
     error = function(cond) {
-      message(paste("There seems to be an error with hashtag:", file))
-      message("Here's the original error message:")
+      message(paste(file, "caused an error. See error message."))
       message(cond)
 
-      write(paste("Error with", file), file = "parsing.log", append = TRUE)
-      write(cond, file = "parsing.log", append = TRUE)
-      # Choose a return value in case of error
-      return(NA)
+      write(paste(file, "caused an error:"), file = log_file, append = TRUE)
+      # write(cond, file = log_file, append = TRUE) # FIXME
+
+      return(NULL) # Choose a return value in case of error
     },
     warning = function(cond) {
-      message(paste("Hashtag caused a warning:", file))
-      message("Here's the original warning message:")
-      message(cond)
+      message(paste(file, "caused a warning. See warning:"))
+      warning(cond)
 
-      write(paste("Warning with", file), file = "parsing.log", append = TRUE)
-      write(cond, file = "parsing.log", append = TRUE)
-      # Choose a return value in case of warning
-      return(NA)
+      write(paste(file, "caused a warning:"), file = log_file, append = TRUE)
+      write(cond, file = log_file, append = TRUE)
+
+      return(NULL) # Choose a return value in case of warning
     }
   )
 }
 
 
-# FIXME: Introduction of Joining errors?
 merge_queries <- function(dat) {
   # iterate over each API query response in input list and rbind the subtables together
   all <- list()
@@ -49,7 +50,7 @@ merge_queries <- function(dat) {
   return(all)
 }
 
-#### Data Cleaning ------
+### Data Cleaning ------------------------------------------------------------
 
 ## Rename dataset with predefined namekeys for each subdataset
 # set report_missing to TRUE to check for variables currently not in our preselection
@@ -186,10 +187,10 @@ prepare_join <- function(d) {
   d$main$referenced_media <- map(d$main$media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
 
   # FIXME: Weird recycling errors
-    # Error: Assigned data `map(...)` must be compatible with existing data.
-    # ℹ Row updates require a list value. Do you need `list()` or `as.list()`?
-    # Unknown or uninitialised column: `ref_media_id
-    # -> media can exist but no ref_media_id (needs to be checked for separately!)
+  # Error: Assigned data `map(...)` must be compatible with existing data.
+  # ℹ Row updates require a list value. Do you need `list()` or `as.list()`?
+  # Unknown or uninitialised column: `ref_media_id
+  # -> media can exist but no ref_media_id (needs to be checked for separately!)
 
   # d$tweets$ref_referenced_media <- map(d$tweets$ref_media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
 
@@ -225,4 +226,7 @@ preselect_vars <- function(d) {
   return(d)
 }
 
+order_vars <- function() {
+ # TODO: enforce a more useful order of variables
+}
 
