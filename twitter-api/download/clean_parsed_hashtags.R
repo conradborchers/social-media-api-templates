@@ -1,9 +1,9 @@
 ### Omit Hashtags with less than n<100 original tweets ---------------------------
 ## Read in parsed hashtags
-dat <- readRDS(here::here("twitter-api", "download", "all_hashtags_parsed.rds"))
+parsed <- readRDS(here::here("twitter-api", "download", "data", "all_hashtags_parsed.rds"))
 
 # get list of original tweet count per hashtag
-n_original <- map_dbl(dat, ~ .x$main %>%
+n_original <- map_dbl(parsed, ~ .x$main %>%
   select(id, text) %>%
   distinct(id, .keep_all = TRUE) %>%
   filter(!str_detect(text, "^RT @")) %>% # Filter out retweets
@@ -27,12 +27,15 @@ d <- dat[query_summary$in_dataset]
 ### Data Cleaning -------------------------------------------------------
 
 library(tidyverse)
-# Get Functions
-source(here::here("twitter-api", "download", "hashtag_merger_functions.R"))
 
 cat("Reading in parsed data over threshold...")
-d <- readRDS("twitter-api/download/hashtags_over_threshold.rds")
+# d <- readRDS("twitter-api/download/hashtags_over_threshold.rds")
+d <- readRDS("twitter-api/download/data/test_parsed_hashtags.rds")
+d <- d[1:30]
 n <- length(d)
+
+# Get Functions
+source(here::here("twitter-api", "download", "hashtag_merger_functions.R"))
 
 # Iterate over all conversations in parsed data and clean + join + rbind
 final <- imap_dfr(d, function(dat, index) {
@@ -41,20 +44,21 @@ final <- imap_dfr(d, function(dat, index) {
   dat %>%
     rename_vars() %>%
     preselect_vars() %>%
-    fill_missing_tibbles() %>%
-    prepare_join() %>%
-    drop_duplicates() %>%
+    fill_missing_tibbles() %>% # add placeholder foreign keys if subtables are empty
+    drop_duplicates() %>% # remove duplicated primary and foreign keys in subtables
+    wrangle_data() %>%
     join_tables()
 })
 
 cat("\nFinishing up dataset...")
 final <- final %>%
   distinct(status_id, .keep_all = TRUE) %>%
-  arrange(desc(created_at))
+  arrange(desc(created_at)) # timeline order (newest on top)
 
 
-results_path <- paste0(here::here("twitter-api", "download/"), "data_hashtags_cleaned", Sys.Date(), ".rds")
-cat("\nSaving Dataset to:", results_path)
+results_path <- paste0(here::here("twitter-api", "download", "data/"), "test_hashtags_cleaned.rds")
+# results_path <- paste0(here::here("twitter-api", "download", "data/"), "data_hashtags_cleaned", Sys.Date(), ".rds")
+cat("\nSaving Dataset to:\n", results_path, sep = "")
 saveRDS(final, results_path)
 
 usethis::ui_done("Finished!")

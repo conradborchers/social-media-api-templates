@@ -1,9 +1,10 @@
 ### JSON Parsing ------------------------------------------------------------
 
+# Get json files
 get_files_by_hashtag <- function(hashtag, json_path) {
   cat(" | Getting files...")
   write(" | Getting files...", file = log_file, append = TRUE)
-  # Get json files
+
   dir(
     path = json_path, full.names = TRUE,
     pattern = paste0(hashtag, "\\-")
@@ -36,7 +37,7 @@ parse_json <- function(file) {
   )
 }
 
-
+# FIXME: consider making everything a tibble
 merge_queries <- function(dat) {
   # iterate over each API query response in input list and rbind the subtables together
   all <- list()
@@ -71,7 +72,7 @@ rename_vars <- function(d, report_missing = FALSE) {
     entities.mentions = "entities.mentions",
     entities.urls = "entities.urls",
     entities.hashtags = "entities.hashtags",
-    entities.annotations = "annotations",
+    entities.annotations = "annotations", # TODO: consider renaming
     public_metrics.retweet_count = "retweet_count",
     public_metrics.reply_count = "reply_count",
     public_metrics.like_count = "like_count",
@@ -91,7 +92,7 @@ rename_vars <- function(d, report_missing = FALSE) {
     created_at = "user_created_at",
     url = "user_url",
     location = "user_location",
-    name = "name",
+    name = "user_fullname",
     profile_image_url = "user_profile_image",
     entities.url.urls = "entities.url.urls",
     entities.description.mentions = "entities.description.mentions",
@@ -157,6 +158,18 @@ rename_vars <- function(d, report_missing = FALSE) {
   return(d)
 }
 
+# Reduce payload by removing obsolete variables
+# use contains for the cases in which variables are not present
+preselect_vars <- function(d) {
+  d$main <- d$main %>% select(-contains("entities"))
+  d$users <- d$users %>% select(-contains("entities"), -contains("user_fullname"), -contains("user_url"), -contains("user_protected"), -contains("user_profile_image"), -contains("user_pinned_status_id"))
+  d$tweets <- d$tweets %>% select(-contains("entities"), -contains("annotations")) # FIXME: removed annotation because rowwise ref unnesting does not work with subnestings
+  d$media <- d$media %>% select(-contains("media_width"), -contains("media_height"))
+  d$places <- d$places %>% select(-contains("place_country_full"))
+  return(d)
+}
+
+# Note: run before dropping duplicates
 fill_missing_tibbles <- function(d) {
   # -> place_id / media_id and ref_status_id are also not in $main if not in the included data
   # nrow == 0 only works with tibbles
@@ -176,30 +189,51 @@ fill_missing_tibbles <- function(d) {
   return(d)
 }
 
-
-## Prepare Join // add media variables before removing them
-prepare_join <- function(d) {
-  # FIXME: not accurate
-  d$main$ref_status_id <- map_chr(d$main$referenced_tweets, ~ ifelse(is.null(.x), NA, head(.x$id, 1)))
-  # Add / Join Media so it can be removed afterwards
-  # FIXME: Check for robustness
+# Join and nest subtables (media / tweets)
+wrangle_data <- function(d) {
   # unnest media keys list, lookup media data and nest again in data frame
+  # Note: it's essentially a left_join but the primary keys are in a vector and are thus matched with a filter and rowbinded by map
   d$main$referenced_media <- map(d$main$media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
+  # multi media test case: index 674
 
-  # FIXME: Weird recycling errors
-  # Error: Assigned data `map(...)` must be compatible with existing data.
-  # ℹ Row updates require a list value. Do you need `list()` or `as.list()`?
-  # Unknown or uninitialised column: `ref_media_id
-  # -> media can exist but no ref_media_id (needs to be checked for separately!)
+  # FIXME: deselect -media_id if nesting successful
 
-  # d$tweets$ref_referenced_media <- map(d$tweets$ref_media_id, ~ map_dfr(.x, ~ d$media %>% filter(media_id == .x)))
+  # slower alternative with tibble and join
+  # transform media_id before with map
+  # d$main$referenced_media <- map(d$main$media_id, function(mid) {
+  #   if (is.null(mid)) {
+  #     # return empty structure with same attributes for data consistency #tidy
+  #     return(NULL)
+  #   } else {
+  #     # join primary keys with variables of attached media
+  #     all_media <- tibble(
+  #       mid = mid
+  #     ) %>% left_join(d$media, by = c("mid" = "media_id"), keep = TRUE)
+  #     return(all_media)
+  #   }
+  # })
 
-  # reduce payload by removing duplicated media references in referenced_media dataframe
-  # %>% distinct(media_id, .keep_all = TRUE)
+  d$main$referenced_tweets <- map(d$main$referenced_tweets, function(ref) {
+    if (is.null(ref)) {
+      # return empty structure with same attributes for data consistency #tidy
+      return(structure(list(), .Names = character(0), row.names = integer(0), class = c("data.frame")))
+    } else {
+      # join primary keys with variables of referenced_tweets
+      # FIXME: make a tibble out of it?
+      all_ref <- left_join(ref, d$tweets, by = c("id" = "ref_status_id"), keep = TRUE) # FIXME: remove keep
+      return(all_ref)
+    }
+  })
+
+  # TODO: add ref_media nesting here (?!)
+  # alternatively keep a second dataset with all media_ids for later lookup (better!)
+
   return(d)
 }
 
 # -> Identifier variables need to be distinct for correct joining!
+# Note: should be run before new variables added that depend on subjoining (e.g. referenced_media)
+# Note: fill up missing vars before
 drop_duplicates <- function(d) {
   d$main <- d$main %>% distinct(status_id, .keep_all = TRUE)
   d$users <- d$users %>% distinct(user_id, .keep_all = TRUE)
@@ -211,22 +245,13 @@ drop_duplicates <- function(d) {
 join_tables <- function(d) {
   d$main %>%
     left_join(d$users, by = "user_id") %>%
-    left_join(d$tweets, by = "ref_status_id") %>%
+    # left_join(d$tweets, by = "ref_status_id") %>%
     left_join(d$places, by = "place_id")
   # media was nested before
 }
 
-# Reduce payload by removing obsolete variables
-preselect_vars <- function(d) {
-  d$main <- d$main %>% select(-contains("entities"))
-  d$users <- d$users %>% select(-contains("entities"), -name, -contains("user_url"), -contains("user_protected"), -contains("user_profile_image"), -contains("user_pinned_status_id"))
-  d$tweets <- d$tweets %>% select(-contains("entities"))
-  d$media <- d$media %>% select(-contains("media_width"), -contains("media_height"))
-  d$places <- d$places %>% select(-contains("place_country_full"))
-  return(d)
-}
+
 
 order_vars <- function() {
- # TODO: enforce a more useful order of variables
+  # TODO: enforce a more useful order of variables
 }
-
